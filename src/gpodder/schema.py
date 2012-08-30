@@ -59,6 +59,7 @@ PodcastColumns = (
     'auto_archive_episodes',
     'download_folder',
     'pause_subscription',
+    'pause_sync',
     'section',
     'payment_url',
 )
@@ -101,6 +102,7 @@ def initialize_database(db):
         auto_archive_episodes INTEGER NOT NULL DEFAULT 0,
         download_folder TEXT NOT NULL DEFAULT '',
         pause_subscription INTEGER NOT NULL DEFAULT 0,
+        pause_sync INTEGER NOT NULL DEFAULT 0,
         section TEXT NOT NULL DEFAULT '',
         payment_url TEXT NULL DEFAULT NULL
     )

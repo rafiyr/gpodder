@@ -69,7 +69,7 @@ class gPodderSyncUI(object):
         """
         episodes = []
         for channel in channels:
-            if only_downloaded:
+            if only_downloaded or channel.pause_sync:
                 logger.info('Skipping channel: %s', channel.title)
                 continue
 

@@ -441,6 +441,7 @@ class PodcastChannelProxy(object):
         self.auth_username = None
         self.auth_password = None
         self.pause_subscription = False
+        self.pause_sync = False
         self.auto_archive_episodes = False
 
     def get_statistics(self):
