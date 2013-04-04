@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 # Copyright (c) 2011 Neal H. Walfield
 #
 # gPodder is free software; you can redistribute it and/or modify
@@ -67,6 +67,13 @@ import feedparser
 import StringIO
 import xml.dom.minidom
 
+if gpodder.ui.win32:
+    try:
+        import win32file
+    except ImportError:
+        logger.warn('Running on Win32 but win32api/win32file not installed.')
+        win32file = None
+
 _ = gpodder.gettext
 N_ = gpodder.ngettext
 
@@ -85,9 +92,9 @@ if encoding is None:
         lang = os.environ['LANG']
         (language, encoding) = lang.rsplit('.', 1)
         logger.info('Detected encoding: %s', encoding)
-    elif gpodder.ui.fremantle or gpodder.ui.harmattan:
+    elif gpodder.ui.harmattan or gpodder.ui.sailfish:
         encoding = 'utf-8'
-    elif gpodder.win32:
+    elif gpodder.ui.win32:
         # To quote http://docs.python.org/howto/unicode.html:
         # ,,on Windows, Python uses the name "mbcs" to refer
         #   to whatever the currently configured encoding is``
@@ -132,6 +139,7 @@ _MIME_TYPE_LIST = [
     ('.flv', 'video/x-flv'),
     ('.mkv', 'video/x-matroska'),
     ('.wmv', 'video/x-ms-wmv'),
+    ('.opus', 'audio/opus'),
 ]
 
 _MIME_TYPES = dict((k, v) for v, k in _MIME_TYPE_LIST)
@@ -411,6 +419,19 @@ def file_age_to_string(days):
         return N_('%(count)d day ago', '%(count)d days ago', days) % {'count':days}
 
 
+def is_system_file(filename):
+    """
+    Checks to see if the given file is a system file.
+    """
+    if gpodder.ui.win32 and win32file is not None:
+        result = win32file.GetFileAttributes(filename)
+        #-1 is returned by GetFileAttributes when an error occurs
+        #0x4 is the FILE_ATTRIBUTE_SYSTEM constant
+        return result != -1 and result & 0x4 != 0
+    else:
+        return False
+
+
 def get_free_disk_space_win32(path):
     """
     Win32-specific code to determine the free disk space remaining
@@ -418,18 +439,13 @@ def get_free_disk_space_win32(path):
 
     http://mail.python.org/pipermail/python-list/2003-May/203223.html
     """
+    if win32file is None:
+        # Cannot determine free disk space
+        return 0
 
     drive, tail = os.path.splitdrive(path)
-
-    try:
-        import win32file
-        userFree, userTotal, freeOnDisk = win32file.GetDiskFreeSpaceEx(drive)
-        return userFree
-    except ImportError:
-        logger.warn('Running on Win32 but win32api/win32file not installed.')
-
-    # Cannot determine free disk space
-    return 0
+    userFree, userTotal, freeOnDisk = win32file.GetDiskFreeSpaceEx(drive)
+    return userFree
 
 
 def get_free_disk_space(path):
@@ -444,7 +460,7 @@ def get_free_disk_space(path):
     if not os.path.exists(path):
         return 0
 
-    if gpodder.win32:
+    if gpodder.ui.win32:
         return get_free_disk_space_win32(path)
 
     s = os.statvfs(path)
@@ -669,7 +685,7 @@ def mimetype_from_extension(extension):
     'audio/mpeg'
     >>> mimetype_from_extension('.mkv')
     'video/x-matroska'
-    >>> mimetype_from_extension('.abc')
+    >>> mimetype_from_extension('._invalid_file_extension_')
     ''
     """
     if extension in _MIME_TYPES_EXT:
@@ -970,7 +986,7 @@ def url_add_authentication(url, username, password):
     return urlparse.urlunsplit(url_parts)
 
 
-def urlopen(url, headers=None, data=None):
+def urlopen(url, headers=None, data=None, timeout=None):
     """
     An URL opener with the User-agent set to gPodder (with version)
     """
@@ -991,7 +1007,10 @@ def urlopen(url, headers=None, data=None):
 
     headers.update({'User-agent': gpodder.user_agent})
     request = urllib2.Request(url, data=data, headers=headers)
-    return opener.open(request)
+    if timeout is None:
+        return opener.open(request)
+    else:
+        return opener.open(request, timeout=timeout)
 
 def get_real_url(url):
     """
@@ -1020,7 +1039,7 @@ def find_command(command):
 
     for path in os.environ['PATH'].split(os.pathsep):
         command_file = os.path.join(path, command)
-        if gpodder.win32 and not os.path.exists(command_file):
+        if gpodder.ui.win32 and not os.path.exists(command_file):
             for extension in ('.bat', '.exe'):
                 cmd = command_file + extension
                 if os.path.isfile(cmd):
@@ -1144,9 +1163,9 @@ def format_time(value):
     else:
         return dt.strftime('%H:%M:%S')
 
-
 def parse_time(value):
     """Parse a time string into seconds
+
     >>> parse_time('00:00')
     0
     >>> parse_time('00:00:00')
@@ -1159,16 +1178,30 @@ def parse_time(value):
     3600
     >>> parse_time('03:02:01')
     10921
+    >>> parse_time('61:08')
+    3668
+    >>> parse_time('25:03:30')
+    90210
+    >>> parse_time('25:3:30')
+    90210
+    >>> parse_time('61.08')
+    3668
     """
+    if value == '':
+        return 0
+
     if not value:
         raise ValueError('Invalid value: %s' % (str(value),))
 
-    for format in ('%H:%M:%S', '%M:%S'):
-        try:
-            t = time.strptime(value, format)
-            return (t.tm_hour * 60 + t.tm_min) * 60 + t.tm_sec
-        except ValueError, ve:
-            continue
+    m = re.match(r'(\d+)[:.](\d\d?)[:.](\d\d?)', value)
+    if m:
+        hours, minutes, seconds = m.groups()
+        return (int(hours) * 60 + int(minutes)) * 60 + int(seconds)
+
+    m = re.match(r'(\d+)[:.](\d\d?)', value)
+    if m:
+        minutes, seconds = m.groups()
+        return int(minutes) * 60 + int(seconds)
 
     return int(value)
 
@@ -1228,12 +1261,11 @@ def gui_open(filename):
     systems with a few exceptions:
 
        on Win32, os.startfile() is used
-       on Maemo, osso is used to communicate with Nokia Media Player
     """
     try:
-        if gpodder.win32:
+        if gpodder.ui.win32:
             os.startfile(filename)
-        elif gpodder.osx:
+        elif gpodder.ui.osx:
             subprocess.Popen(['open', filename])
         else:
             subprocess.Popen(['xdg-open', filename])
@@ -1249,15 +1281,7 @@ def open_website(url):
     browser. This uses Python's "webbrowser" module, so
     make sure your system is set up correctly.
     """
-    if gpodder.ui.fremantle:
-        import osso
-        context = osso.Context('gPodder', gpodder.__version__, False)
-        rpc = osso.Rpc(context)
-        rpc.rpc_run_with_defaults('osso_browser', \
-                                  'open_new_window', \
-                                  (url,))
-    else:
-        run_in_background(lambda: webbrowser.open(url))
+    run_in_background(lambda: webbrowser.open(url))
 
 def convert_bytes(d):
     """
@@ -1488,7 +1512,7 @@ def detect_device_type():
     Possible return values:
     desktop, laptop, mobile, server, other
     """
-    if gpodder.ui.fremantle or gpodder.ui.harmattan:
+    if gpodder.ui.harmattan or gpodder.ui.sailfish:
         return 'mobile'
     elif glob.glob('/proc/acpi/battery/*'):
         # Linux: If we have a battery, assume Laptop
@@ -1569,7 +1593,7 @@ def atomic_rename(old_name, new_name):
     the new contents into a temporary file and then moving the
     temporary file over the original file to replace it.
     """
-    if gpodder.win32:
+    if gpodder.ui.win32:
         # Win32 does not support atomic rename with os.rename
         shutil.move(old_name, new_name)
     else:
@@ -1635,4 +1659,103 @@ def run_in_background(function, daemon=False):
     thread.setDaemon(daemon)
     thread.start()
     return thread
+
+
+def linux_get_active_interfaces():
+    """Get active network interfaces using 'ip link'
+
+    Returns a list of active network interfaces or an
+    empty list if the device is offline. The loopback
+    interface is not included.
+    """
+    process = subprocess.Popen(['ip', 'link'], stdout=subprocess.PIPE)
+    data, _ = process.communicate()
+    for interface, _ in re.findall(r'\d+: ([^:]+):.*state (UP|UNKNOWN)', data):
+        if interface != 'lo':
+            yield interface
+
+
+def osx_get_active_interfaces():
+    """Get active network interfaces using 'ifconfig'
+
+    Returns a list of active network interfaces or an
+    empty list if the device is offline. The loopback
+    interface is not included.
+    """
+    process = subprocess.Popen(['ifconfig'], stdout=subprocess.PIPE)
+    stdout, _ = process.communicate()
+    for i in re.split('\n(?!\t)', stdout, re.MULTILINE):
+        b = re.match('(\\w+):.*status: active$', i, re.MULTILINE | re.DOTALL)
+        if b:
+            yield b.group(1)
+
+def unix_get_active_interfaces():
+    """Get active network interfaces using 'ifconfig'
+
+    Returns a list of active network interfaces or an
+    empty list if the device is offline. The loopback
+    interface is not included.
+    """
+    process = subprocess.Popen(['ifconfig'], stdout=subprocess.PIPE)
+    stdout, _ = process.communicate()
+    for i in re.split('\n(?!\t)', stdout, re.MULTILINE):
+        b = re.match('(\\w+):.*status: active$', i, re.MULTILINE | re.DOTALL)
+        if b:
+            yield b.group(1)
+
+
+def connection_available():
+    """Check if an Internet connection is available
+
+    Returns True if a connection is available (or if there
+    is no way to determine the connection). Returns False
+    if no network interfaces are up (i.e. no connectivity).
+    """
+    try:
+        if gpodder.ui.win32:
+            # FIXME: Implement for Windows
+            return True
+        elif gpodder.ui.osx:
+            return len(list(osx_get_active_interfaces())) > 0
+        else:
+            # By default, we assume we're not offline (bug 1730)
+            offline = False
+
+            if find_command('ifconfig') is not None:
+                # If ifconfig is available, and it says we don't have
+                # any active interfaces, assume we're offline
+                if len(list(unix_get_active_interfaces())) == 0:
+                    offline = True
+
+            # If we assume we're offline, try the "ip" command as fallback
+            if offline and find_command('ip') is not None:
+                if len(list(linux_get_active_interfaces())) == 0:
+                    offline = True
+                else:
+                    offline = False
+
+            return not offline
+
+        return False
+    except Exception, e:
+        logger.warn('Cannot get connection status: %s', e, exc_info=True)
+        # When we can't determine the connection status, act as if we're online (bug 1730)
+        return True
+
+
+def website_reachable(url):
+    """
+    Check if a specific website is available.
+    """
+    if not connection_available():
+        # No network interfaces up - assume website not reachable
+        return (False, None)
+
+    try:
+        response = urllib2.urlopen(url, timeout=1)
+        return (True, response)
+    except urllib2.URLError as err:
+        pass
+
+    return (False, None)
 

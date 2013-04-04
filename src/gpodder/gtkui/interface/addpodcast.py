@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,8 +30,8 @@ from gpodder import util
 
 class gPodderAddPodcast(BuilderWidget):
     def new(self):
-        if not hasattr(self, 'add_urls_callback'):
-            self.add_urls_callback = None
+        if not hasattr(self, 'add_podcast_list'):
+            self.add_podcast_list = None
         if hasattr(self, 'custom_label'):
             self.label_add.set_text(self.custom_label)
         if hasattr(self, 'custom_title'):
@@ -82,6 +82,7 @@ class gPodderAddPodcast(BuilderWidget):
     def on_btn_add_clicked(self, widget):
         url = self.entry_url.get_text()
         self.on_btn_close_clicked(widget)
-        if self.add_urls_callback is not None:
-            self.add_urls_callback([url])
+        if self.add_podcast_list is not None:
+            title = None # FIXME: Add title GUI element
+            self.add_podcast_list([(title, url)])
 

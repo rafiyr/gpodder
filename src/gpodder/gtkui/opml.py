@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,12 +29,13 @@ import cgi
 import urllib
 
 class OpmlListModel(gtk.ListStore):
-    C_SELECTED, C_DESCRIPTION_MARKUP, C_URL = range(3)
+    C_SELECTED, C_TITLE, C_DESCRIPTION_MARKUP, C_URL = range(4)
 
     def __init__(self, importer):
-        gtk.ListStore.__init__(self, bool, str, str)
+        gtk.ListStore.__init__(self, bool, str, str, str)
         for channel in importer.items:
-            self.append([False, self._format_channel(channel), channel['url']])
+            self.append([False, channel['title'],
+                self._format_channel(channel), channel['url']])
 
     def _format_channel(self, channel):
         title = cgi.escape(urllib.unquote_plus(channel['title']))

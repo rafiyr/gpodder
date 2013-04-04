@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +25,8 @@ import gpodder
 
 from gpodder import util
 
+import os.path
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -36,40 +38,68 @@ except ImportError:
 import re
 import urllib
 
-# See http://en.wikipedia.org/wiki/YouTube#Quality_and_codecs
-# Currently missing: 3GP profile
-supported_formats = [
-    (37, '37/1920x1080/9/0/115', '1920x1080 (HD)'),
-    (22, '22/1280x720/9/0/115', '1280x720 (HD)'),
-    (35, '35/854x480/9/0/115', '854x480'),
-    (34, '34/640x360/9/0/115', '640x360'),
-    (18, '18/640x360/9/0/115', '640x360 (iPod)'),
-    (18, '18/480x360/9/0/115', '480x360 (iPod)'),
-    (5, '5/320x240/7/0/0', '320x240 (FLV)'),
+try:
+    # Python >= 2.6
+    from urlparse import parse_qs
+except ImportError:
+    # Python < 2.6
+    from cgi import parse_qs
 
-    # WebM formats have lower priority, because "most" players are still less
-    # compatible with WebM than their equivalent MP4 formats above (bug 1336)
-    # If you really want WebM files, set the preferred fmt_id to any of these:
-    (45, '45/1280x720/99/0/0', 'WebM 720p'),
-    (44, '44/854x480/99/0/0', 'WebM 480p'),
-    (43, '43/640x360/99/0/0', 'WebM 360p'),
+# http://en.wikipedia.org/wiki/YouTube#Quality_and_codecs
+# format id, (preferred ids, path(?), description) # video bitrate, audio bitrate
+formats = [
+    # WebM VP8 video, Vorbis audio
+    # Fallback to an MP4 version of same quality.
+    # Try 34 (FLV 360p H.264 AAC) if 18 (MP4 360p) fails.
+    # Fallback to 6 or 5 (FLV Sorenson H.263 MP3) if all fails.
+    (46, ([46, 37, 45, 22, 44, 35, 43, 18, 6, 34, 5], '45/1280x720/99/0/0', 'WebM 1080p (1920x1080)')), # N/A,      192 kbps
+    (45, ([45, 22, 44, 35, 43, 18, 6, 34, 5],         '45/1280x720/99/0/0', 'WebM 720p (1280x720)')),   # 2.0 Mbps, 192 kbps
+    (44, ([44, 35, 43, 18, 6, 34, 5],                 '44/854x480/99/0/0',  'WebM 480p (854x480)')),    # 1.0 Mbps, 128 kbps
+    (43, ([43, 18, 6, 34, 5],                         '43/640x360/99/0/0',  'WebM 360p (640x360)')),    # 0.5 Mbps, 128 kbps
+
+    # MP4 H.264 video, AAC audio
+    # Try 35 (FLV 480p H.264 AAC) between 720p and 360p because there's no MP4 480p.
+    # Try 34 (FLV 360p H.264 AAC) if 18 (MP4 360p) fails.
+    # Fallback to 6 or 5 (FLV Sorenson H.263 MP3) if all fails.
+    (38, ([38, 37, 22, 35, 18, 34, 6, 5], '38/1920x1080/9/0/115', 'MP4 4K 3072p (4096x3072)')), # 5.0 - 3.5 Mbps, 192 kbps
+    (37, ([37, 22, 35, 18, 34, 6, 5],     '37/1920x1080/9/0/115', 'MP4 HD 1080p (1920x1080)')), # 4.3 - 3.0 Mbps, 192 kbps
+    (22, ([22, 35, 18, 34, 6, 5],         '22/1280x720/9/0/115',  'MP4 HD 720p (1280x720)')),   # 2.9 - 2.0 Mbps, 192 kbps
+    (18, ([18, 34, 6, 5],                 '18/640x360/9/0/115',   'MP4 360p (640x360)')),       #       0.5 Mbps,  96 kbps
+
+    # FLV H.264 video, AAC audio
+    # Does not check for 360p MP4.
+    # Fallback to 6 or 5 (FLV Sorenson H.263 MP3) if all fails.
+    (35, ([35, 34, 6, 5], '35/854x480/9/0/115',   'FLV 480p (854x480)')), # 1 - 0.80 Mbps, 128 kbps
+    (34, ([34, 6, 5],     '34/640x360/9/0/115',   'FLV 360p (640x360)')), #     0.50 Mbps, 128 kbps
+
+    # FLV Sorenson H.263 video, MP3 audio
+    (6, ([6, 5],         '5/480x270/7/0/0',      'FLV 270p (480x270)')), #     0.80 Mbps,  64 kbps
+    (5, ([5],            '5/320x240/7/0/0',      'FLV 240p (320x240)')), #     0.25 Mbps,  64 kbps
 ]
+formats_dict = dict(formats)
 
 class YouTubeError(Exception): pass
 
-def get_real_download_url(url, preferred_fmt_id=None):
-    # Default fmt_id when none preferred
-    if preferred_fmt_id is None:
-        preferred_fmt_id = 18
 
-    # For Maemo 5, we force fmt_id 5 for performance reasons
-    if gpodder.ui.fremantle:
-        preferred_fmt_id = 5
+def get_fmt_ids(youtube_config):
+    fmt_ids = youtube_config.preferred_fmt_ids
+    if not fmt_ids:
+        format = formats_dict.get(youtube_config.preferred_fmt_id)
+        if format is None:
+            fmt_ids = []
+        else:
+            fmt_ids, path, description = format
+
+    return fmt_ids
+
+def get_real_download_url(url, preferred_fmt_ids=None):
+    if not preferred_fmt_ids:
+        preferred_fmt_ids, _, _ = formats_dict[22] # MP4 720p
 
     vid = get_youtube_id(url)
     if vid is not None:
         page = None
-        url = 'http://www.youtube.com/watch?v=' + vid
+        url = 'http://www.youtube.com/get_video_info?&el=detailpage&video_id=' + vid
 
         while page is None:
             req = util.http_request(url, method='GET')
@@ -81,70 +111,59 @@ def get_real_download_url(url, preferred_fmt_id=None):
         # Try to find the best video format available for this video
         # (http://forum.videohelp.com/topic336882-1800.html#1912972)
         def find_urls(page):
-            r4 = re.search('.*"url_encoded_fmt_stream_map"\:\s+"([^"]+)".*', page)
+            r4 = re.search('.*&url_encoded_fmt_stream_map=([^&]+)&.*', page)
             if r4 is not None:
-                fmt_url_map = r4.group(1)
+                fmt_url_map = urllib.unquote(r4.group(1))
                 for fmt_url_encoded in fmt_url_map.split(','):
-                    video_info = dict(map(urllib.unquote, x.split('=', 1))
-                            for x in fmt_url_encoded.split('\\u0026'))
-
-                    yield int(video_info['itag']), video_info['url']
+                    video_info = parse_qs(fmt_url_encoded)
+                    yield int(video_info['itag'][0]), video_info['url'][0] + "&signature=" + video_info['sig'][0]
+            else:
+                error_info = parse_qs(page)
+                error_message = util.remove_html_tags(error_info['reason'][0])
+                raise YouTubeError('Cannot download video: %s' % error_message)
 
         fmt_id_url_map = sorted(find_urls(page), reverse=True)
-        # Default to the highest fmt_id if we don't find a match below
-        if fmt_id_url_map:
-            default_fmt_id, default_url = fmt_id_url_map[0]
-        else:
+
+        if not fmt_id_url_map:
             raise YouTubeError('fmt_url_map not found for video ID "%s"' % vid)
+
+        # Default to the highest fmt_id if we don't find a match below
+        _, url  = fmt_id_url_map[0]
 
         formats_available = set(fmt_id for fmt_id, url in fmt_id_url_map)
         fmt_id_url_map = dict(fmt_id_url_map)
 
-        if gpodder.ui.fremantle or gpodder.ui.harmattan:
-            # This provides good quality video, seems to be always available
-            # and is playable fluently in Media Player
-            if preferred_fmt_id == 5:
-                fmt_id = 5
-            else:
-                fmt_id = 18
-        else:
-            # As a fallback, use fmt_id 18 (seems to be always available)
-            fmt_id = 18
+        # This provides good quality video, seems to be always available
+        # and is playable fluently in Media Player
+        if gpodder.ui.harmattan or gpodder.ui.sailfish:
+            preferred_fmt_ids = [18]
 
-            # This will be set to True if the search below has already "seen"
-            # our preferred format, but has not yet found a suitable available
-            # format for the given video.
-            seen_preferred = False
+        for id in preferred_fmt_ids:
+            id = int(id)
+            if id in formats_available:
+                format = formats_dict.get(id)
+                if format is not None:
+                    _, _, description = format
+                else:
+                    description = 'Unknown'
 
-            for id, wanted, description in supported_formats:
-                # If we see our preferred format, accept formats below
-                if id == preferred_fmt_id:
-                    seen_preferred = True
-
-                # If the format is available and preferred (or lower),
-                # use the given format for our fmt_id
-                if id in formats_available and seen_preferred:
-                    logger.info('Found YouTube format: %s (fmt_id=%d)',
-                            description, id)
-                    fmt_id = id
-                    break
-
-        url = fmt_id_url_map.get(fmt_id, None)
-        if url is None:
-            url = default_url
+                logger.info('Found YouTube format: %s (fmt_id=%d)',
+                        description, id)
+                url = fmt_id_url_map[id]
+                break
 
     return url
 
 def get_youtube_id(url):
-    r = re.compile('http://(?:[a-z]+\.)?youtube\.com/v/(.*)\.swf', re.IGNORECASE).match(url)
+    r = re.compile('http[s]?://(?:[a-z]+\.)?youtube\.com/v/(.*)\.swf', re.IGNORECASE).match(url)
     if r is not None:
         return r.group(1)
 
-    r = re.compile('http://(?:[a-z]+\.)?youtube\.com/watch\?v=([^&]*)', re.IGNORECASE).match(url)
+    r = re.compile('http[s]?://(?:[a-z]+\.)?youtube\.com/watch\?v=([^&]*)', re.IGNORECASE).match(url)
     if r is not None:
         return r.group(1)
 
-    r = re.compile('http://(?:[a-z]+\.)?youtube\.com/v/(.*)[?]', re.IGNORECASE).match(url)
+    r = re.compile('http[s]?://(?:[a-z]+\.)?youtube\.com/v/(.*)[?]', re.IGNORECASE).match(url)
     if r is not None:
         return r.group(1)
 
@@ -203,7 +222,7 @@ def find_youtube_channels(string):
 
     seen_users = set()
     for entry in data['feed']['entry']:
-        user = entry['author'][0]['name']['$t']
+        user = os.path.basename(entry['author'][0]['uri']['$t'])
         title = entry['title']['$t']
         url = 'http://www.youtube.com/rss/user/%s/videos.rss' % user
         if user not in seen_users:

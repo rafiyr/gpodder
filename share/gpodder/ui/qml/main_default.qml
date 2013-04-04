@@ -1,198 +1,54 @@
 
-import Qt 4.7
-import com.nokia.meego 1.0
+import QtQuick 1.1
 import QtWebKit 1.0
+
+import org.gpodder.qmlui 1.0
 
 import 'config.js' as Config
 
-PageStackWindow {
+WindowWindow {
     id: rootWindow
     property variant main: mainObject
-    property bool fullsize: (platformWindow.viewMode == WindowState.Fullsize)
 
     function _(x) {
         return controller.translate(x)
     }
 
-    // Unused boolean activity variables:
-    //  - platformWindow.visible - Visible somewhere
-    //  - platformWindow.active - Active (input focus?)
+    InfoBanner {
+        id: infoBanner
+    }
 
-    showToolBar: (mainObject.canGoBack || mainObject.hasPlayButton || mainObject.hasSearchButton) && (mainObject.hasPodcasts || mainObject.canGoBack) || pageStack.depth > 1
-
-    // Hide status bar in landscape mode
-    showStatusBar: screen.currentOrientation == Screen.Portrait
-
-    initialPage: Page {
+    initialPage: PagePage {
         id: mainPage
-        orientationLock: {
-            if (configProxy.autorotate) {
-                PageOrientation.Automatic
-            } else {
-                PageOrientation.LockPortrait
-            }
-        }
+        listview: mainObject.podcastListView
 
-        tools: ToolBarLayout {
-            ToolIcon {
-                id: toolBack
-                anchors.left: parent.left
-                iconId: "icon-m-toolbar-back-white"
-                onClicked: mainObject.goBack()
-                visible: mainObject.canGoBack
-            }
+        lockToPortrait: !configProxy.autorotate
 
-            ToolIcon {
-                id: toolFlattr
-                iconSource: 'artwork/flattr.png'
-                visible: mainObject.state == 'shownotes'
-
-                opacity: (mainObject.state == 'shownotes') && (labelFlattr.text !== '')
-                Behavior on opacity { PropertyAnimation { } }
-
-                anchors.right: toolPlay.visible?toolPlay.left:parent.right
+        actions: [
+            Action {
+                text: _('Now playing')
+                onClicked: mainObject.clickPlayButton();
+            },
+            Action {
+                text: _('Check for new episodes')
+                onClicked: controller.updateAllPodcasts();
+            },
+            Action {
+                text: _('Add podcast')
+                onClicked: mainObject.clickSearchButton();
+            },
+            Action {
+                text: _('Settings')
                 onClicked: {
-                    controller.flattrEpisode(mainObject.showNotesEpisode);
+                    settingsPage.loadSettings();
+                    pageStack.push(settingsPage);
                 }
+            },
+            Action {
+                text: _('About gPodder')
+                onClicked: pageStack.push(aboutBox);
             }
-
-            Connections {
-                target: mainObject
-                onShowNotesEpisodeChanged: {
-                    controller.updateFlattrButtonText(mainObject.showNotesEpisode);
-                }
-            }
-
-            Label {
-                id: labelFlattr
-                color: 'white'
-                anchors.right: toolFlattr.left
-                anchors.verticalCenter: toolFlattr.verticalCenter
-                opacity: toolFlattr.opacity
-                visible: toolFlattr.visible
-
-                text: controller.flattrButtonText
-            }
-
-            ToolIcon {
-                id: toolMenu
-                onClicked: {
-                    if (mainObject.state === 'episodes') {
-                        hrmtnEpisodesMenu.open();
-                    } else {
-                        hrmtnMainViewMenu.open();
-                    }
-                }
-                anchors.right: parent.right
-                iconId: "toolbar-view-menu"
-                visible: (!toolBack.visible && mainObject.state == 'podcasts') || (mainObject.currentPodcast !== undefined && mainObject.state == 'episodes')
-            }
-
-            ToolIcon {
-                id: toolRefresh
-                iconId: 'icon-m-toolbar-refresh-white'
-                onClicked: controller.updateAllPodcasts()
-                visible: mainObject.hasSearchButton && mainObject.hasPodcasts
-                anchors.left: parent.left
-            }
-
-            ToolIcon {
-                id: toolAdd
-                iconId: "icon-m-toolbar-add-white"
-                onClicked: mainObject.clickSearchButton()
-                visible: mainObject.hasSearchButton
-                anchors.centerIn: parent
-                //anchors.right: toolPlay.visible?toolPlay.left:toolPlay.right
-            }
-
-            ToolButton {
-                id: toolFilter
-                visible: mainObject.hasFilterButton
-                width: 300
-                onClicked: mainObject.showFilterDialog()
-                anchors.centerIn: parent
-
-                Label {
-                    color: 'white'
-                    text: mainObject.currentFilterText
-                    anchors.centerIn: parent
-                }
-            }
-
-            ToolIcon {
-                id: toolPlay
-                iconId: "icon-m-toolbar-content-audio-white"
-                onClicked: mainObject.clickPlayButton()
-                visible: mainObject.hasPlayButton && !toolMenu.visible
-                anchors.right: parent.right
-            }
-        }
-
-        ContextMenu {
-            id: hrmtnMainViewMenu
-
-            MenuLayout {
-                MenuItem {
-                    text: _('Now playing')
-                    onClicked: nowPlayingMenuItem.clicked()
-                }
-                MenuItem {
-                    text: _('Settings')
-                    onClicked: {
-                        hrmtnMainViewMenu.close()
-                        settingsPage.loadSettings()
-                        pageStack.push(settingsPage)
-                    }
-                }
-                MenuItem {
-                    text: _('About gPodder')
-                    onClicked: {
-                        hrmtnMainViewMenu.close()
-                        pageStack.push(aboutBox)
-                    }
-                }
-            }
-        }
-
-        ContextMenu {
-            id: hrmtnEpisodesMenu
-
-            MenuLayout {
-                MenuItem {
-                    id: nowPlayingMenuItem
-                    text: _('Now playing')
-                    onClicked: {
-                        if (mainObject.hasPlayButton) {
-                            hrmtnMainViewMenu.close();
-                            mainObject.clickPlayButton();
-                        } else {
-                            mainObject.showMessage(_('Playlist empty'));
-                        }
-                    }
-                }
-                MenuItem {
-                    text: _('Download episodes')
-                    onClicked: {
-                        mainObject.showMultiEpisodesSheet(text, _('Download'), 'download');
-                        hrmtnMainViewMenu.close()
-                    }
-                }
-                MenuItem {
-                    text: _('Playback episodes')
-                    onClicked: {
-                        mainObject.showMultiEpisodesSheet(text, _('Play'), 'play');
-                        hrmtnMainViewMenu.close()
-                    }
-                }
-                MenuItem {
-                    text: _('Delete episodes')
-                    onClicked: {
-                        mainObject.showMultiEpisodesSheet(text, _('Delete'), 'delete');
-                        hrmtnMainViewMenu.close()
-                    }
-                }
-            }
-        }
+        ]
 
         Main {
             id: mainObject
@@ -200,20 +56,52 @@ PageStackWindow {
         }
     }
 
-    Page {
-        id: aboutBox
-        property color textColor: 'white'
-        orientationLock: PageOrientation.LockPortrait
+    PagePage {
+        id: subscribePage
+        lockToPortrait: mainPage.lockToPortrait
 
-        tools: ToolBarLayout {
-            ToolIcon {
-                anchors.left: parent.left
-                iconId: "icon-m-toolbar-back-white"
-                onClicked: {
-                    pageStack.pop()
-                }
+        Subscribe {
+            anchors.fill: parent
+
+            onSubscribe: {
+                controller.addSubscriptions(urls);
+                pageStack.pop();
             }
         }
+    }
+
+    PagePage {
+        id: showNotesPage
+        lockToPortrait: mainPage.lockToPortrait
+
+        ShowNotes {
+            id: showNotes
+
+            anchors.fill: parent
+
+            Behavior on opacity { NumberAnimation { duration: Config.slowTransition } }
+            Behavior on anchors.leftMargin { NumberAnimation { duration: Config.slowTransition } }
+        }
+
+        /*actions: [
+            Action {
+                text: controller.flattrButtonText
+                onClicked: controller.flattrEpisode(showNotes.episode);
+            }
+        ]
+
+        Connections {
+            target: mainObject
+            onShowNotesEpisodeChanged: {
+                controller.updateFlattrButtonText(showNotes.episode);
+            }
+        }*/
+    }
+
+    PagePage {
+        id: aboutBox
+        property color textColor: 'white'
+        lockToPortrait: true
 
         Flickable {
             id: aboutFlickable
@@ -298,25 +186,14 @@ PageStackWindow {
             }
         }
 
-        ScrollDecorator {
-            flickableItem: aboutFlickable
+        ScrollScroll {
+            flickable: aboutFlickable
         }
     }
 
-    Page {
+    PagePage {
         id: flattrLoginPage
-        orientationLock: mainPage.orientationLock
-
-        tools: ToolBarLayout {
-            ToolIcon {
-                id: flattrLoginPageClose
-                anchors.left: parent.left
-                iconId: "icon-m-toolbar-back-white"
-                onClicked: {
-                    pageStack.pop()
-                }
-            }
-        }
+        lockToPortrait: mainPage.lockToPortrait
 
         WebView {
             id: flattrLoginWebView
@@ -334,9 +211,61 @@ PageStackWindow {
     }
 
 
-    Page {
+    PagePage {
+        id: myGpoLoginPage
+        lockToPortrait: mainPage.lockToPortrait
+
+        onClosed: {
+            controller.myGpoUsername = myGpoUsernameField.text
+            controller.myGpoPassword = myGpoPasswordField.text
+            controller.myGpoDeviceCaption = myGpoDeviceCaptionField.text
+        }
+
+        Item {
+            id: myGpoLoginContent
+            anchors.fill: parent
+
+            Flickable {
+                anchors.fill: parent
+                anchors.margins: Config.largeSpacing
+                contentHeight: myGpoLoginColumn.height
+
+                Column {
+                    id: myGpoLoginColumn
+                    anchors.fill: parent
+                    spacing: 4
+
+                    Label {
+                        text: _('gPodder.net Login')
+                        font.pixelSize: 40
+                        anchors.right: parent.right
+                    }
+
+                    SettingsHeader { text: _('Credentials') }
+
+                    SettingsLabel { text: _('Username') }
+                    InputField { id: myGpoUsernameField; anchors.left: parent.left; anchors.right: parent.right }
+
+                    Item { height: 1; width: 1 }
+
+                    SettingsLabel { text: _('Password') }
+                    InputField { id: myGpoPasswordField; anchors.left: parent.left; anchors.right: parent.right; echoMode: TextInput.Password }
+
+                    Item { height: 1; width: 1 }
+
+                    SettingsLabel { text: _('Device name') }
+                    InputField { id: myGpoDeviceCaptionField; anchors.left: parent.left; anchors.right: parent.right }
+
+                }
+            }
+        }
+}
+
+    PagePage {
         id: settingsPage
-        orientationLock: mainPage.orientationLock
+        lockToPortrait: mainPage.lockToPortrait
+
+        property bool myGpoUserPassFilled: controller.myGpoUsername != '' && controller.myGpoPassword != ''
 
         function loadSettings() {
             settingsAutorotate.checked = configProxy.autorotate
@@ -350,23 +279,10 @@ PageStackWindow {
             myGpoDeviceCaptionField.text = controller.myGpoDeviceCaption
         }
 
-        tools: ToolBarLayout {
-            ToolIcon {
-                id: settingsPageClose
-                anchors.left: parent.left
-                iconId: "icon-m-toolbar-back-white"
-                onClicked: {
-                    controller.myGpoUsername = myGpoUsernameField.text
-                    controller.myGpoPassword = myGpoPasswordField.text
-                    controller.myGpoDeviceCaption = myGpoDeviceCaptionField.text
-                    controller.myGpoEnabled = myGpoEnableSwitch.checked && (controller.myGpoUsername != '' && controller.myGpoPassword != '')
-                    controller.saveMyGpoSettings()
-
-                    pageStack.pop()
-                }
-            }
+        onClosed: {
+            controller.myGpoEnabled = myGpoEnableSwitch.checked && myGpoUserPassFilled;
+            controller.saveMyGpoSettings();
         }
-
 
         Item {
             id: myGpoSheetContent
@@ -385,7 +301,8 @@ PageStackWindow {
 
                     Label {
                         text: _('gPodder settings')
-                        font.pixelSize: 30
+                        font.pixelSize: 40
+                        anchors.right: parent.right
                     }
 
                     SettingsHeader { text: _('Screen orientation') }
@@ -449,35 +366,43 @@ PageStackWindow {
 
                     Item { height: Config.largeSpacing; width: 1 }
 
-                    SettingsLabel { text: _('Username') }
-                    InputField { id: myGpoUsernameField; anchors.left: parent.left; anchors.right: parent.right }
-
-                    Item { height: 1; width: 1 }
-
-                    SettingsLabel { text: _('Password') }
-                    InputField { id: myGpoPasswordField; anchors.left: parent.left; anchors.right: parent.right; echoMode: TextInput.Password }
-
-                    Item { height: 1; width: 1 }
-
-                    SettingsLabel { text: _('Device name') }
-                    InputField { id: myGpoDeviceCaptionField; anchors.left: parent.left; anchors.right: parent.right }
-
+                    Button {
+                        text: {
+                            if (settingsPage.myGpoUserPassFilled) {
+                                _('Sign out')
+                            } else {
+                                _('Sign in to gPodder.net')
+                            }
+                        }
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: parent.width * .8
+                        onClicked: {
+                            if (settingsPage.myGpoUserPassFilled) {
+                                /* Logout */
+                                controller.myGpoPassword = '';
+                                myGpoPasswordField.text = '';
+                            } else {
+                                /* Login */
+                                pageStack.push(myGpoLoginPage);
+                            }
+                        }
+                    }
                     Item { height: Config.largeSpacing; width: 1 }
 
                     Button {
                         text: _('Replace list on server')
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: parent.width * .8
+                        visible: settingsPage.myGpoUserPassFilled
                         onClicked: {
-                            settingsPageClose.clicked()
-                            controller.myGpoUploadList()
+                            pageStack.pop();
+                            controller.myGpoUploadList();
                         }
                     }
 
-                    Item { height: Config.largeSpacing; width: 1 }
-
                     Button {
                         text: _('No account? Register here')
+                        visible: ! settingsPage.myGpoUserPassFilled
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: parent.width * .8
                         onClicked: Qt.openUrlExternally('http://gpodder.net/register/')

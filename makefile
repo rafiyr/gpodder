@@ -1,6 +1,6 @@
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -84,7 +84,7 @@ $(GPODDER_DESKTOP_FILE_IN).h: $(GPODDER_DESKTOP_FILE_IN)
 	intltool-extract --quiet --type=gettext/ini $<
 
 install: messages $(GPODDER_SERVICE_FILE) $(GPODDER_DESKTOP_FILE)
-	$(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX)
+	$(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX) --optimize=1
 
 ##########################################################################
 

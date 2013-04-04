@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@ from gpodder import model
 from gpodder import coverart
 
 import os
+import urllib
 
 convert = util.convert_bytes
 
@@ -115,6 +116,19 @@ class QEpisode(QObject):
 
     qfiletype = Property(unicode, _filetype, notify=never_changed)
 
+    def _pubdate(self):
+        return self._episode.cute_pubdate()
+
+    qpubdate = Property(unicode, _pubdate, notify=never_changed)
+
+    def _filesize(self):
+        if self._episode.file_size:
+            return util.format_filesize(self._episode.file_size)
+        else:
+            return ''
+
+    qfilesize = Property(unicode, _filesize, notify=changed)
+
     def _downloaded(self):
         return self._episode.was_downloaded(and_exists=True)
 
@@ -142,7 +156,7 @@ class QEpisode(QObject):
 
     qprogress = Property(float, _progress, notify=changed)
 
-    def qdownload(self, config, finished_callback=None):
+    def qdownload(self, config, finished_callback=None, progress_callback=None):
         # Avoid starting the same download twice
         if self.download_task is not None:
             return
@@ -154,18 +168,24 @@ class QEpisode(QObject):
         task = download.DownloadTask(self._episode, config)
         task.status = download.DownloadTask.QUEUED
         self.changed.emit()
+        if progress_callback is not None:
+            progress_callback(self.id)
 
         def t(self):
             def cb(progress):
                 if progress > self._qt_download_progress + .01 or progress == 1:
                     self._qt_download_progress = progress
                     self.changed.emit()
+                    if progress_callback is not None:
+                        progress_callback(self.id)
             task.add_progress_callback(cb)
             task.run()
             task.recycle()
             task.removed_from_list()
-            self.changed.emit()
             self.source_url_changed.emit()
+
+            if progress_callback is not None:
+                progress_callback(self.id)
 
             # Make sure the single channel is updated (main view)
             self._podcast.changed.emit()
@@ -293,6 +313,17 @@ class QPodcast(QObject):
 
     qcoverurl = Property(unicode, _coverurl, notify=changed)
 
+    def _coverart(self):
+        quote = lambda x: convert(x) if x else u''
+        return convert(u'image://cover/%s|%s|%s|%s' % (
+            quote(self._podcast.cover_file),
+            quote(self._podcast.cover_url),
+            quote(self._podcast.url),
+            quote(self._podcast.title),
+        ))
+
+    qcoverart = Property(unicode, _coverart, notify=changed)
+
     def _downloaded(self):
         return self._podcast.get_statistics()[3]
 
@@ -405,6 +436,17 @@ class EpisodeSubsetView(QObject):
     qcoverfile = Property(unicode, _return_cover, notify=changed)
     qcoverurl = Property(unicode, _return_empty, notify=changed)
     qsection = Property(unicode, _return_empty, notify=changed)
+
+    def _coverart(self):
+        quote = lambda x: convert(x) if x else u''
+        return convert(u'image://cover/%s|%s|%s|%s' % (
+            quote(coverart.CoverDownloader.ALL_EPISODES_ID),
+            u'',
+            u'',
+            quote(self.title),
+        ))
+
+    qcoverart = Property(unicode, _coverart, notify=changed)
 
     def _title(self):
         return convert(self.title)

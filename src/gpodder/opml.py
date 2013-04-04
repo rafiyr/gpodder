@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -182,7 +182,7 @@ class Exporter(object):
             if available < 2*len(data)+FREE_DISK_SPACE_AFTER:
                 # On Windows, if we have zero bytes available, assume that we have
                 # not had the win32file module available + assume enough free space
-                if not gpodder.win32 or available > 0:
+                if not gpodder.ui.win32 or available > 0:
                     logger.error('Not enough free disk space to save channel list to %s', self.filename)
                     return False
             fp = open(self.filename+'.tmp', 'w')

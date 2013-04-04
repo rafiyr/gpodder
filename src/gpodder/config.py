@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -88,7 +88,7 @@ defaults = {
 
     # Software updates from gpodder.org (primary audience: Windows users)
     'software_update': {
-        'check_on_startup': gpodder.win32, # check for updates on start
+        'check_on_startup': gpodder.ui.win32, # check for updates on start
         'last_check': 0, # unix timestamp of last update check
         'interval': 5, # interval (in days) to check for updates
     },
@@ -117,6 +117,7 @@ defaults = {
                     'x': -1, 'y': -1, 'maximized': False,
 
                     'paned_position': 200,
+                    'episode_list_size': 200,
                 },
                 'episode_selector': {
                     'width': 600,
@@ -146,7 +147,6 @@ defaults = {
                 'descriptions': True,
                 'view_mode': 1,
                 'columns': int('101', 2), # bitfield of visible columns
-                'embed_shownotes': False, # show shownotes below episode list
             },
 
             'download_list': {
@@ -174,10 +174,18 @@ defaults = {
             'delete_episodes': False,
             'sync_disks': False,
         },
+        'playlists': {
+            'create': True,
+            'two_way_sync': False,
+            'use_absolute_path': True,
+            'folder': 'Playlists',
+        }
+
     },
 
     'youtube': {
-        'preferred_fmt_id': 18,
+        'preferred_fmt_id': 18, # default fmt_id (see fallbacks in youtube.py)
+        'preferred_fmt_ids': [], # for advanced uses (custom fallback sequence)
     },
 
     'extensions': {
@@ -204,7 +212,6 @@ gPodderSettings_LegacySupport = {
     'auto_remove_unplayed_episodes': 'auto.cleanup.unplayed',
     'max_episodes_per_feed': 'limit.episodes',
     'show_toolbar': 'ui.gtk.toolbar',
-    'paned_position': 'ui.gtk.state.main_window.paned_position',
     'episode_list_descriptions': 'ui.gtk.episode_list.descriptions',
     'podcast_list_view_all': 'ui.gtk.podcast_list.all_episodes',
     'podcast_list_sections': 'ui.gtk.podcast_list.sections',
@@ -212,7 +219,6 @@ gPodderSettings_LegacySupport = {
     'episode_list_view_mode': 'ui.gtk.episode_list.view_mode',
     'podcast_list_view_mode': 'ui.gtk.podcast_list.view_mode',
     'podcast_list_hide_boring': 'ui.gtk.podcast_list.hide_empty',
-    'youtube_preferred_fmt_id': 'youtube.preferred_fmt_id',
     'episode_list_columns': 'ui.gtk.episode_list.columns',
     'auto_cleanup_downloads': 'ui.gtk.download_list.remove_finished',
     'auto_update_feeds': 'auto.update.enabled',

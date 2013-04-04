@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ IMAGE_FLATTRED = os.path.join(gpodder.images_folder, 'button-flattred.png')
 
 
 def set_flattr_button(flattr, payment_url, widget_image, widget_button):
-    if not payment_url:
+    if not flattr.api_reachable() or not payment_url:
         widget_image.hide()
         widget_button.hide()
         return False

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -441,6 +441,7 @@ class PodcastChannelProxy(object):
         self.auth_username = None
         self.auth_password = None
         self.pause_subscription = False
+        self.sync_to_mp3_player = False
         self.auto_archive_episodes = False
 
     def get_statistics(self):

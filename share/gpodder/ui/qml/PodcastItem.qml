@@ -1,16 +1,13 @@
 
-import Qt 4.7
+import QtQuick 1.1
 
-import com.nokia.meego 1.0
+import org.gpodder.qmlui 1.0
 
 import 'config.js' as Config
 import 'util.js' as Util
 
 SelectableItem {
     id: podcastItem
-
-    // Show context menu when single-touching the count or cover art
-    singlePressContextMenuLeftBorder: titleBox.x
 
     Item {
         id: counterBox
@@ -53,10 +50,36 @@ SelectableItem {
         running: visible
     }
 
+    Item {
+        visible: counters.newEpisodes > 0
+        clip: true
+
+        anchors {
+            left: cover.right
+            leftMargin: 2
+            verticalCenter: cover.verticalCenter
+        }
+
+        height: cover.height
+        width: cover.width * .25
+
+        Rectangle {
+            anchors {
+                verticalCenter: parent.verticalCenter
+                horizontalCenter: parent.left
+            }
+
+            color: Config.newColor
+            width: parent.width
+            height: width
+            rotation: 45
+        }
+    }
+
     Image {
     	id: cover
 
-        source: Util.formatCoverURL(modelData)
+        source: modelData.qcoverart
         asynchronous: true
         width: podcastItem.height * .8
         height: width
@@ -74,18 +97,17 @@ SelectableItem {
         id: titleBox
 
         text: modelData.qtitle
-        color: (counters.newEpisodes > 0)?Config.newColor:"white"
+        color: (!isSailfish && counters.newEpisodes)?Config.newColor:'white'
 
         anchors {
             verticalCenter: parent.verticalCenter
             left: cover.visible?cover.right:cover.left
-            leftMargin: Config.smallSpacing
+            leftMargin: Config.smallSpacing * 2
             right: parent.right
             rightMargin: Config.smallSpacing
         }
 
         font.pixelSize: podcastItem.height * .35
-        elide: Text.ElideRight
         wrapMode: Text.NoWrap
     }
 }

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,6 +24,9 @@ from sqlite3 import dbapi2 as sqlite
 
 import time
 import shutil
+
+import logging
+logger = logging.getLogger(__name__)
 
 EpisodeColumns = (
     'podcast_id',
@@ -61,9 +64,11 @@ PodcastColumns = (
     'pause_subscription',
     'section',
     'payment_url',
+    'download_strategy',
+    'sync_to_mp3_player',
 )
 
-CURRENT_VERSION = 3
+CURRENT_VERSION = 5
 
 
 # SQL commands to upgrade old database versions to new ones
@@ -82,6 +87,16 @@ UPGRADE_SQL = [
         ALTER TABLE episode ADD COLUMN payment_url TEXT NULL DEFAULT NULL
         UPDATE podcast SET http_last_modified=NULL, http_etag=NULL
         """),
+
+        # Version 4: Per-podcast download strategy management
+        (3, 4, """
+        ALTER TABLE podcast ADD COLUMN download_strategy INTEGER NOT NULL DEFAULT 0
+        """),
+
+        # Version 5: Per-podcast MP3 player device synchronization option
+        (4, 5, """
+        ALTER TABLE podcast ADD COLUMN sync_to_mp3_player INTEGER NOT NULL DEFAULT 1
+        """)
 ]
 
 def initialize_database(db):
@@ -102,7 +117,9 @@ def initialize_database(db):
         download_folder TEXT NOT NULL DEFAULT '',
         pause_subscription INTEGER NOT NULL DEFAULT 0,
         section TEXT NOT NULL DEFAULT '',
-        payment_url TEXT NULL DEFAULT NULL
+        payment_url TEXT NULL DEFAULT NULL,
+        download_strategy INTEGER NOT NULL DEFAULT 0,
+        sync_to_mp3_player INTEGER NOT NULL DEFAULT 1
     )
     """)
 
@@ -224,6 +241,8 @@ def convert_gpodder2_db(old_db, new_db):
                 not row['feed_update_enabled'],
                 '',
                 None,
+                0,
+                row['sync_to_devices'],
         )
         new_db.execute("""
         INSERT INTO podcast VALUES (%s)
@@ -264,4 +283,11 @@ def convert_gpodder2_db(old_db, new_db):
     old_db.close()
     new_db.commit()
     new_db.close()
+
+def check_data(db):
+    # All episodes must be assigned to a podcast
+    orphan_episodes = db.get('SELECT COUNT(id) FROM episode '
+            'WHERE podcast_id NOT IN (SELECT id FROM podcast)')
+    if orphan_episodes > 0:
+        logger.error('Orphaned episodes found in database')
 

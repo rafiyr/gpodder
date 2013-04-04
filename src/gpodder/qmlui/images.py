@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -45,8 +45,7 @@ class LocalCachedImageProvider(QDeclarativeImageProvider):
         if key in self._cache:
             return self._cache[key]
 
-        cover_file, cover_url, podcast_url, podcast_title = (urllib.unquote(x)
-                for x in id.split('|'))
+        cover_file, cover_url, podcast_url, podcast_title = id.split('|')
 
         def get_filename():
             return self.downloader.get_cover(cover_file, cover_url,

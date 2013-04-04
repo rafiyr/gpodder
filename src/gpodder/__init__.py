@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,10 +20,10 @@
 # This metadata block gets parsed by setup.py - use single quotes only
 __tagline__   = 'Media aggregator and podcast client'
 __author__    = 'Thomas Perl <thp@gpodder.org>'
-__version__   = '3.2.0'
-__date__      = '2012-07-25'
-__relname__   = 'The Great Radish Famine'
-__copyright__ = '© 2005-2012 Thomas Perl and the gPodder Team'
+__version__   = '3.5.0'
+__date__      = '2013-03-05'
+__relname__   = 'The After Hours'
+__copyright__ = '© 2005-2013 Thomas Perl and the gPodder Team'
 __license__   = 'GNU General Public License, version 3 or later'
 __url__       = 'http://gpodder.org/'
 
@@ -73,11 +73,11 @@ del sqlite3
 # The User-Agent string for downloads
 user_agent = 'gPodder/%s (+%s)' % (__version__, __url__)
 
-# Are we running in GUI, Maemo or console mode?
+# Are we running in GUI, MeeGo 1.2 Harmattan or console mode?
 class UI(object):
     def __init__(self):
-        self.fremantle = False
         self.harmattan = False
+        self.sailfish = False
         self.gtk = False
         self.qml = False
         self.cli = False
@@ -94,9 +94,9 @@ dbus_podcasts = 'org.gpodder.podcasts'
 dbus_session_bus = None
 
 # Set "win32" to True if we are on Windows
-win32 = (platform.system() == 'Windows')
+ui.win32 = (platform.system() == 'Windows')
 # Set "osx" to True if we are on Mac OS X
-osx = (platform.system() == 'Darwin')
+ui.osx = (platform.system() == 'Darwin')
 
 # i18n setup (will result in "gettext" to be available)
 # Use   _ = gpodder.gettext   in modules to enable string translations
@@ -113,7 +113,7 @@ except AttributeError:
     gettext = t.gettext
     ngettext = t.ngettext
 
-if win32:
+if ui.win32:
     try:
         # Workaround for bug 650
         from gtk.glade import bindtextdomain
@@ -211,10 +211,10 @@ def detect_platform():
     except Exception, e:
         etc_issue = ''
 
-    ui.fremantle = ('Maemo 5' in etc_issue)
     ui.harmattan = ('MeeGo 1.2 Harmattan' in etc_issue)
+    ui.sailfish = ('Mer release' in etc_issue)
 
-    if (ui.fremantle or ui.harmattan) and ENV_HOME not in os.environ:
+    if ui.harmattan and ENV_HOME not in os.environ:
         new_home = os.path.expanduser(os.path.join('~', 'MyDocs', 'gPodder'))
         set_home(os.path.expanduser(new_home))
 

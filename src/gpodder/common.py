@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # gPodder - A media aggregator and podcast client
-# Copyright (c) 2005-2012 Thomas Perl and the gPodder Team
+# Copyright (c) 2005-2013 Thomas Perl and the gPodder Team
 #
 # gPodder is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -92,4 +92,44 @@ def find_partial_downloads(channels, start_progress_callback, progress_callback,
         finish_progress_callback(resumable_episodes)
     else:
         clean_up_downloads(True)
+
+def get_expired_episodes(channels, config):
+    for channel in channels:
+        for index, episode in enumerate(channel.get_episodes(gpodder.STATE_DOWNLOADED)):
+            # Never consider archived episodes as old
+            if episode.archive:
+                continue
+
+            # Download strategy "Only keep latest"
+            if (channel.download_strategy == channel.STRATEGY_LATEST and
+                    index > 0):
+                logger.info('Removing episode (only keep latest strategy): %s',
+                        episode.title)
+                yield episode
+                continue
+
+            # Only expire episodes if the age in days is positive
+            if config.episode_old_age < 1:
+                continue
+
+            # Never consider fresh episodes as old
+            if episode.age_in_days() < config.episode_old_age:
+                continue
+
+            # Do not delete played episodes (except if configured)
+            if not episode.is_new:
+                if not config.auto_remove_played_episodes:
+                    continue
+
+            # Do not delete unfinished episodes (except if configured)
+            if not episode.is_finished():
+                if not config.auto_remove_unfinished_episodes:
+                    continue
+
+            # Do not delete unplayed episodes (except if configured)
+            if episode.is_new:
+                if not config.auto_remove_unplayed_episodes:
+                    continue
+
+            yield episode
 
